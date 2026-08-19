@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Backend generated files
+backend/uploads/
+backend/data/json/
+backend/data/vector_store/
