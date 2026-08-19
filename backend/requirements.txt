@@ -1,0 +1,10 @@
+pymupdf
+sentence-transformers
+faiss-cpu
+rank-bm25
+chromadb
+pytesseract
+pillow
+pdf2image
+fastapi
+gradio
