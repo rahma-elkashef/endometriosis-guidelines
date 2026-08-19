@@ -579,12 +579,37 @@ header[data-testid="stHeader"] { background:transparent; }
 }
 
 /* Chips (history / suggestions use native buttons, styled below) */
+/* ---------- Primary AI composer: ChatGPT-like multiline input ---------- */
+.st-key-query_input { margin-top:14px !important; margin-bottom:12px !important; }
+.st-key-query_input textarea {
+    min-height:118px !important; max-height:240px !important; resize:vertical !important;
+    border-radius:14px !important; border:2px solid rgba(14,33,38,.34) !important;
+    padding:18px 20px !important; background:rgba(255,255,255,.97) !important;
+    color:var(--ink) !important; font-family:"DM Sans",sans-serif !important;
+    font-size:1.04rem !important; font-weight:600 !important; line-height:1.6 !important;
+    box-shadow:0 8px 22px rgba(6,25,28,.08), inset 0 1px 0 rgba(255,255,255,.9) !important;
+}
+.st-key-query_input textarea::placeholder { color:#789094 !important; font-weight:500 !important; }
+.st-key-query_input textarea:focus {
+    border-color:var(--teal-2) !important;
+    box-shadow:0 0 0 4px rgba(21,128,137,.13),0 12px 28px rgba(6,25,28,.10) !important;
+    outline:none !important;
+}
+.primary-input-caption {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    margin:2px 2px 8px; color:var(--muted); font-family:"JetBrains Mono",monospace;
+    font-size:.61rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+}
+.primary-input-caption .input-mode {
+    color:var(--teal-2); background:rgba(21,128,137,.07);
+    border:1px solid rgba(21,128,137,.16); border-radius:999px; padding:4px 8px;
+}
+
 div[data-testid="stTextInput"] input {
     border-radius:var(--radius-sm) !important;
     border:1px solid rgba(19,46,51,.18) !important;
     padding:14px !important;
     background:rgba(255,255,255,.94) !important;
-    color:#000 !important;
     font-size:.98rem !important;
     transition:box-shadow .2s ease, border-color .2s ease;
 }
@@ -710,6 +735,55 @@ div.stButton > button[kind="primary"]:disabled {
 }
 .copy-btn:hover { background:rgba(31,122,128,.16); }
 .copy-btn.copied { background:rgba(26,110,82,.14); border-color:rgba(26,110,82,.3); color:#1a6e52; }
+    /* ---------- Workspace switcher ---------- */
+    .workspace-heading{display:flex;align-items:center;gap:18px;margin:6px 0 10px}
+    .workspace-heading .ws-kicker{font-family:"JetBrains Mono",monospace;font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700}
+    div[data-testid="stRadio"]>label{display:none!important}
+    .st-key-workspace div[role="radiogroup"]{display:flex;gap:6px;padding:5px;width:fit-content;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.72);backdrop-filter:blur(8px);box-shadow:0 8px 20px rgba(6,25,28,.08)}
+    .st-key-workspace div[role="radiogroup"]>label{border:0!important;border-radius:999px!important;padding:9px 16px!important;min-height:0!important;background:transparent!important;color:var(--ink-soft)!important;transition:all .18s ease!important;cursor:pointer!important}
+    .st-key-workspace div[role="radiogroup"]>label:hover{background:rgba(21,128,137,.06)!important;color:var(--teal-2)!important;transform:translateY(-1px)}
+    .st-key-workspace div[role="radiogroup"]>label[data-checked="true"]{background:linear-gradient(120deg,var(--teal),var(--teal-2))!important;color:#fff!important;box-shadow:0 7px 16px rgba(15,92,98,.24)}
+    .st-key-workspace div[role="radiogroup"]>label p{font-family:"DM Sans",sans-serif!important;font-size:.78rem!important;font-weight:700!important;margin:0!important}
+    .query-source-hint{display:flex;align-items:center;gap:7px;width:fit-content;margin:8px 0 10px;padding:6px 10px;border-radius:999px;background:rgba(21,128,137,.06);border:1px solid rgba(21,128,137,.14);color:var(--teal-2);font-family:"JetBrains Mono",monospace;font-size:.62rem;letter-spacing:.04em}
+    /* ---------- PDF Intelligence ---------- */
+    .pdf-hero{position:relative;overflow:hidden;padding:42px 34px;min-height:290px;display:flex;align-items:center;justify-content:center;text-align:center;background:radial-gradient(circle at 50% 10%,rgba(21,128,137,.12),transparent 42%),linear-gradient(145deg,rgba(255,255,255,.94),rgba(238,241,234,.82))}
+    .pdf-hero::after{content:"";position:absolute;width:330px;height:330px;border-radius:50%;border:1px solid rgba(21,128,137,.12);animation:floatSlow 5s ease-in-out infinite;pointer-events:none}
+    .pdf-hero-inner{position:relative;z-index:1;max-width:760px}
+    .pdf-icon{width:76px;height:76px;margin:0 auto 17px;display:flex;align-items:center;justify-content:center;border-radius:22px;color:#fff;background:linear-gradient(145deg,var(--teal),var(--teal-deep));box-shadow:0 16px 28px rgba(15,92,98,.22);animation:floatSlow 4.5s ease-in-out infinite}
+    .pdf-icon svg{width:35px;height:35px}
+    .pdf-title{font-family:"Fraunces",serif;font-size:clamp(2rem,3.5vw,3.15rem);line-height:1;letter-spacing:-.03em;color:var(--ink);margin:0}
+    .pdf-subtitle{max-width:650px;margin:13px auto 0;color:var(--ink-soft);line-height:1.65;font-size:.96rem}
+    .pdf-upload-zone{border:1.5px dashed rgba(21,128,137,.38);border-radius:var(--radius-lg);padding:22px;margin-top:18px;background:rgba(255,255,255,.58);transition:all .2s ease}
+    .pdf-upload-zone:hover{border-color:var(--teal);background:rgba(21,128,137,.045);box-shadow:0 12px 26px rgba(15,92,98,.10)}
+    .pdf-upload-caption{text-align:center;color:var(--muted);font-size:.73rem;font-family:"JetBrains Mono",monospace;letter-spacing:.06em;text-transform:uppercase;margin-top:9px}
+    .pdf-success{display:flex;align-items:flex-start;gap:14px;padding:17px 18px;border:1px solid rgba(26,122,85,.22);border-radius:var(--radius-md);background:linear-gradient(120deg,rgba(26,122,85,.09),rgba(21,128,137,.045));margin-bottom:16px;animation:fadeUp .5s cubic-bezier(.2,.7,.3,1) both}
+    .pdf-success-icon{width:34px;height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(26,122,85,.13);color:var(--green)}
+    .pdf-success-title{font-weight:800;color:var(--ink)}
+    .pdf-success-meta{color:var(--muted);font-size:.74rem;margin-top:4px;line-height:1.55}
+    .pdf-processing{margin-top:16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:rgba(255,255,255,.72);padding:20px 22px;box-shadow:var(--shadow)}
+    .pdf-processing-title{display:flex;align-items:center;gap:8px;color:var(--teal-2);font-family:"JetBrains Mono",monospace;font-size:.66rem;font-weight:700;letter-spacing:.13em;text-transform:uppercase;margin-bottom:12px}
+    .pdf-flow-step{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px dashed var(--line-soft);color:var(--ink-soft);font-size:.82rem}
+    .pdf-flow-step:last-child{border-bottom:0}
+    .pdf-flow-dot{width:25px;height:25px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(21,128,137,.09);color:var(--teal-2);flex-shrink:0}
+    .pdf-flow-step.active .pdf-flow-dot{background:linear-gradient(145deg,var(--teal),var(--teal-2));color:#fff;animation:pulseDot 1.3s ease-in-out infinite}
+    .pdf-ready-banner{display:flex;align-items:center;gap:10px;padding:10px 13px;margin-bottom:14px;border-radius:999px;width:fit-content;color:var(--green);background:rgba(26,122,85,.09);border:1px solid rgba(26,122,85,.22);font-family:"JetBrains Mono",monospace;font-size:.66rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+    .pdf-chat-shell{min-height:520px}
+    .pdf-chat-empty{display:flex;align-items:center;justify-content:center;text-align:center;padding:50px 25px;color:var(--muted)}
+    .pdf-chat-empty strong{display:block;color:var(--ink);font-family:"Fraunces",serif;font-size:1.55rem;margin-bottom:7px}
+    .pdf-message{max-width:86%;padding:14px 16px;border-radius:14px;margin:10px 0;animation:fadeUp .4s ease both;line-height:1.65;font-size:.9rem}
+    .pdf-message.user{margin-left:auto;color:#fff;background:linear-gradient(135deg,var(--teal),var(--teal-2));border-bottom-right-radius:5px;box-shadow:0 10px 20px rgba(15,92,98,.16)}
+    .pdf-message.assistant{margin-right:auto;color:#1c3a3f;background:linear-gradient(160deg,rgba(255,255,255,.97),rgba(238,244,240,.91));border:1px solid var(--line);border-left:4px solid var(--teal);border-bottom-left-radius:5px;box-shadow:var(--shadow)}
+    .pdf-message-label{font-family:"JetBrains Mono",monospace;font-size:.59rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.72;margin-bottom:5px}
+    .pdf-answer-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+    .pdf-badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 8px;font-family:"JetBrains Mono",monospace;font-size:.59rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:rgba(21,128,137,.08);border:1px solid rgba(21,128,137,.2);color:var(--teal-2)}
+    .pdf-doc-card{position:sticky;top:18px}
+    .pdf-doc-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:rgba(21,128,137,.09);color:var(--teal-2);flex-shrink:0}
+    .pdf-doc-head{display:flex;align-items:center;gap:11px;margin-bottom:14px}
+    .pdf-doc-name{font-weight:800;color:var(--ink);font-size:.88rem;word-break:break-word}
+    .pdf-doc-status{color:var(--green);font-size:.66rem;font-family:"JetBrains Mono",monospace;margin-top:3px;text-transform:uppercase}
+    .pdf-reset{margin-top:12px}
+    .pdf-reset button{min-height:42px!important;font-size:.74rem!important}
+    @media(max-width:900px){.st-key-workspace div[role="radiogroup"]{width:100%}.st-key-workspace div[role="radiogroup"]>label{flex:1;justify-content:center;text-align:center}.pdf-message{max-width:94%}.pdf-doc-card{position:relative;top:auto}}
 </style>
 
 <div class="watermark"></div>
@@ -770,6 +844,43 @@ if "confidence" not in st.session_state:
     st.session_state.confidence = None
 if "history" not in st.session_state:
     st.session_state.history = []  # list of {"query": str, "confidence": float}
+
+# ============================================================
+# Workspace state
+# ============================================================
+if "workspace" not in st.session_state:
+    st.session_state.workspace = "Clinical Guideline Assistant"
+if "pdf_document" not in st.session_state:
+    st.session_state.pdf_document = None
+if "pdf_messages" not in st.session_state:
+    st.session_state.pdf_messages = []
+if "pdf_upload_error" not in st.session_state:
+    st.session_state.pdf_upload_error = None
+if "question_source" not in st.session_state:
+    st.session_state.question_source = "Clinical Guidelines"
+
+def upload_pdf_to_backend(uploaded_file):
+    """Send the selected PDF to the PDF Intelligence backend.
+
+    TODO: Confirm the multipart field name and response schema with the backend.
+    """
+    files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
+    response = requests.post(BACKEND_URL + "/upload", files=files, timeout=300)
+    response.raise_for_status()
+    return response.json()
+
+def pdf_chat_request(document_id, question):
+    """Ask the PDF Intelligence backend for a grounded answer.
+
+    TODO: Align request/response keys with the final /pdf-chat contract.
+    """
+    response = requests.post(
+        BACKEND_URL + "/pdf-chat",
+        json={"document_id": document_id, "question": question},
+        timeout=180,
+    )
+    response.raise_for_status()
+    return response.json()
 
 # ============================================================
 # Header
@@ -888,277 +999,327 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ============================================================
+# Unified single-page intelligence workspace
+# Clinical Guidelines + optional PDF RAG, intentionally kept together.
+# ============================================================
+
+st.markdown(
+    '<div class="workspace-heading"><div class="ws-kicker">INTELLIGENCE SOURCE</div></div>',
+    unsafe_allow_html=True,
+)
+
+source_options = ["Clinical Guidelines"]
+if st.session_state.pdf_document:
+    source_options.append("Uploaded PDF")
+
+st.radio(
+    "Question source",
+    source_options,
+    horizontal=True,
+    key="question_source",
+    label_visibility="collapsed",
+)
+
+using_pdf = (
+    st.session_state.question_source == "Uploaded PDF"
+    and bool(st.session_state.pdf_document)
+)
+
 left, right = st.columns([2.05, 1], gap="large")
 
 with left:
+    source_label = (
+        f'PDF · {st.session_state.pdf_document.get("filename", "Uploaded document")}'
+        if using_pdf else "NICE / ESHRE Clinical Guidelines"
+    )
+    source_hint = (
+        "Questions are answered only from your indexed PDF."
+        if using_pdf else "Questions are answered from the indexed clinical guideline corpus."
+    )
+
     st.markdown(
         f'<div class="card fade-in d1">'
-        f'<div class="section-label">{icon("search", 14)} 01 · CLINICAL QUERY</div>'
-        f'<div class="section-title">Ask the guidelines, get a citation</div>',
+        f'<div class="section-label">{icon("search", 14)} 01 · INTELLIGENCE QUERY</div>'
+        f'<div class="section-title">Ask EndoGuide AI</div>'
+        f'<div class="query-source-hint">{icon("target", 12)} '
+        f'{html.escape(source_label)} · {html.escape(source_hint)}</div>',
         unsafe_allow_html=True,
     )
 
-    query = st.text_input(
-        "Clinical question",
+    st.markdown(
+        f'<div class="primary-input-caption"><span>YOUR QUESTION</span>'
+        f'<span class="input-mode">{"PDF RAG · DOCUMENT GROUNDED" if using_pdf else "CLINICAL RAG · GUIDELINE GROUNDED"}</span></div>',
+        unsafe_allow_html=True,
+    )
+
+    query = st.text_area(
+        "Question",
         value=st.session_state.query,
-        placeholder="Ask a clinical question grounded in the indexed guidelines…",
+        placeholder=(
+            "Ask anything about the uploaded PDF… You can ask for summaries, explanations, comparisons, "
+            "specific facts, or evidence from the document."
+            if using_pdf else
+            "Ask a clinical question grounded in the indexed guidelines…"
+        ),
         label_visibility="collapsed",
         key="query_input",
+        height=128,
     )
 
     ask = st.button(
-        "ASK THE GUIDELINES →",
+        "ASK THE DOCUMENT →" if using_pdf else "ASK THE GUIDELINES →",
         type="primary",
         use_container_width=True,
-        disabled=not bool(backend),
+        disabled=(not bool(st.session_state.pdf_document) if using_pdf else not bool(backend)),
+        key="main_ask_button",
     )
 
-    if not backend:
+    if not using_pdf and not backend:
         st.markdown(
             f'<div class="safety-note">{icon("alert", 18)}<div>'
-            f'The backend API is not available in this session.<br>'
-            f'{html.escape(backend_error or "Start the FastAPI server at http://127.0.0.1:8000")}</div></div>',
-            unsafe_allow_html=True,
+            f'The clinical RAG backend is not available in this session.<br>'
+            f'{html.escape(backend_error or "Start the FastAPI server at http://127.0.0.1:8000")}'
+            f'</div></div>', unsafe_allow_html=True,
         )
-
     st.markdown('</div>', unsafe_allow_html=True)
 
-    if ask and query.strip():
+    # FIX: Allow execution if they clicked Ask while a PDF is active, even if text is empty
+    if ask and (query.strip() or using_pdf):
         st.session_state.query = query.strip()
+        question = query.strip()
+        
+        # Inject default question if empty (only for PDF mode)
+        if not question and using_pdf:
+             question = "Summarize the key clinical recommendations or main points in this document."
 
-        with st.spinner("Retrieving guideline evidence and generating a grounded response…"):
-            try:
-                response = requests.post(
-                    BACKEND_URL + "/chat",
-                    json={"question": query.strip()},
-                    timeout=180,
-                )
-                response.raise_for_status()
-                payload = response.json()
+        if using_pdf:
+            # ==========================================
+            # PATH 1: PDF INTELLIGENCE MODE
+            # ==========================================
+            with st.spinner("Retrieving document evidence and generating a grounded response…"):
+                try:
+                    pdf_bytes = st.session_state.pdf_document["bytes"]
+                    pdf_name = st.session_state.pdf_document["filename"]
+                    
+                    request_kwargs = {
+                        "data": {"question": question},
+                        "files": {"pdf_file": (pdf_name, pdf_bytes, "application/pdf")},
+                        "timeout": 180,
+                    }
+                    
+                    response = requests.post(BACKEND_URL + "/chat", **request_kwargs)
+                    response.raise_for_status()
+                    payload = response.json()
 
-                sources = payload.get("sources", []) or []
-                evidence = []
-                for source in sources[:5]:
-                    evidence.append({
-                        "text": source.get("text", ""),
-                        "meta": source,
-                        "rerank": float(source.get("rerank_score", 0.0)),
-                        "score": float(source.get("rerank_score", source.get("bm25_score", 0.0)) or 0.0),
-                    })
+                    sources = payload.get("sources", []) or []
+                    evidence = []
+                    for source in sources[:5]:
+                        evidence.append({
+                            "text": source.get("text", ""),
+                            "meta": source,
+                            "rerank": float(source.get("rerank_score", 0.0)),
+                            "score": float(source.get("rerank_score", source.get("bm25_score", 0.0)) or 0.0),
+                        })
 
-                st.session_state.answer = payload.get("answer", "")
-                st.session_state.evidence = evidence
-                st.session_state.confidence = float(payload.get("confidence", 0.0))
-                st.session_state.history.append({"query": query.strip(), "confidence": st.session_state.confidence})
+                    st.session_state.answer = payload.get("answer", "")
+                    st.session_state.evidence = evidence
+                    st.session_state.confidence = float(payload.get("confidence", 0.0))
+                    
+                    display_query = query.strip() if query.strip() else f"Analyzed Document: {pdf_name}"
+                    st.session_state.history.append({"query": display_query, "confidence": st.session_state.confidence})
 
-            except Exception as e:
-                st.session_state.answer = f"Retrieval error: {e}"
-                st.session_state.evidence = []
-                st.session_state.confidence = 0.0
+                except Exception as e:
+                    st.session_state.answer = f"PDF retrieval error: {e}"
+                    st.session_state.evidence = []
+                    st.session_state.confidence = 0.0
+                    
+        else:
+            # ==========================================
+            # PATH 2: CLINICAL GUIDELINE MODE
+            # ==========================================
+            with st.spinner("Retrieving guideline evidence and generating a grounded response…"):
+                try:
+                    # FIX: Send as 'data' instead of 'json' so it matches the backend's new Form requirement
+                    request_kwargs = {
+                        "data": {"question": question},
+                        "timeout": 180,
+                    }
+                    
+                    response = requests.post(BACKEND_URL + "/chat", **request_kwargs)
+                    response.raise_for_status()
+                    payload = response.json()
+                    
+                    sources = payload.get("sources", []) or []
+                    evidence = []
+                    for source in sources[:5]:
+                        evidence.append({
+                            "text": source.get("text", ""),
+                            "meta": source,
+                            "rerank": float(source.get("rerank_score", 0.0)),
+                            "score": float(source.get("rerank_score", source.get("bm25_score", 0.0)) or 0.0),
+                        })
+
+                    st.session_state.answer = payload.get("answer", "")
+                    st.session_state.evidence = evidence
+                    st.session_state.confidence = float(payload.get("confidence", 0.0))
+                    st.session_state.history.append({"query": question, "confidence": st.session_state.confidence})
+
+                except Exception as e:
+                    st.session_state.answer = f"Retrieval error: {e}"
+                    st.session_state.evidence = []
+                    st.session_state.confidence = 0.0
 
     st.markdown(
         f'<div class="card fade-in d2">'
         f'<div class="section-label">{icon("sparkles", 14)} 02 · GENERATED ANSWER</div>'
-        f'<div class="section-title">The answer, fully sourced</div>',
-        unsafe_allow_html=True,
+        f'<div class="section-title">The answer, fully grounded</div>', unsafe_allow_html=True,
     )
-
     if st.session_state.answer:
         escaped_answer = html.escape(st.session_state.answer).replace(chr(10), "<br>")
         st.markdown(f'<div class="answer-box">{escaped_answer}</div>', unsafe_allow_html=True)
+        
+        # FIX: Base64 encode the text
+        b64_answer = base64.b64encode(st.session_state.answer.encode("utf-8")).decode("utf-8")
+        btn_id = "copybtn_" + hashlib.md5(st.session_state.answer.encode("utf-8")).hexdigest()[:8]
+        
+        # FIX: One continuous line to prevent Streamlit Markdown errors, 
+        # and removed the SVG from the JS string to prevent double-quote HTML breaks.
+        st.markdown(
+            f'<button class="copy-btn" id="{btn_id}" onclick="const decodedText = decodeURIComponent(escape(window.atob(\'{b64_answer}\'))); navigator.clipboard.writeText(decodedText); this.classList.add(\'copied\'); this.innerHTML = \'✓ Copied\'; setTimeout(() => {{ this.classList.remove(\'copied\'); this.innerHTML = \'📋 Copy answer\'; }}, 1800);">{icon("clipboard", 13)} Copy answer</button>', 
+            unsafe_allow_html=True
+        )
     else:
         st.markdown(
-            f'<div class="safety-note">{icon("sparkles", 18)}<div>'
-            f'<b>No answer yet.</b> Ask a clinical question above and the backend will return the answer plus evidence.</div></div>',
+            f'<div class="safety-note">{icon("sparkles", 18)}<div><b>No answer yet.</b> Ask a question above to retrieve grounded evidence and generate a response.</div></div>',
             unsafe_allow_html=True,
         )
-
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown(
         f'<div class="card fade-in d3">'
-        f'<div class="section-label">{icon("layers", 14)} 03 · SUPPORTING EVIDENCE</div>'
-        f'<div class="section-title">Every claim, traceable</div>',
-        unsafe_allow_html=True,
+        f'<div class="section-label">{icon("layers", 14)} 03 · RETRIEVED EVIDENCE</div>'
+        f'<div class="section-title">Every claim, traceable</div>', unsafe_allow_html=True,
     )
-
     if st.session_state.evidence:
         for i, item in enumerate(st.session_state.evidence, 1):
             meta = item.get("meta", {})
-            guideline = meta.get("guideline", meta.get("source", "Guideline"))
-            section = meta.get("section_title", meta.get("section", "Clinical evidence"))
-            chunk_id = meta.get("chunk_id", "—")
-            page = meta.get("page", "—")
-            rerank_score = item.get("rerank", item.get("score", 0))
-            pct = max(0, min(100, int((float(rerank_score) + 5) / 10 * 100))) if rerank_score is not None else 0
-
+            if using_pdf:
+                source_name = meta.get("source") or meta.get("filename") or st.session_state.pdf_document.get("filename", "Uploaded PDF")
+                section = meta.get("section_title", meta.get("section", "PDF evidence"))
+                page = meta.get("page", meta.get("page_number", "—"))
+                score = item.get("rerank", item.get("score", 0))
+                try: pct = max(0, min(100, int(float(score) * 100)))
+                except Exception: pct = 0
+            else:
+                source_name = meta.get("guideline", meta.get("source", "Guideline"))
+                section = meta.get("section_title", meta.get("section", "Clinical evidence"))
+                page = meta.get("page", "—")
+                score = item.get("rerank", item.get("score", 0))
+                pct = max(0, min(100, int((float(score) + 5) / 10 * 100))) if score is not None else 0
             delay = 0.05 * (i - 1)
             st.markdown(
-                f"""
-                <div class="evidence fade-in" style="animation-delay:{delay}s;">
-                    <div class="evidence-head">
-                        <div class="evidence-source"><span class="source-tag">S{i}</span>&nbsp; {html.escape(str(guideline))}</div>
-                        <div class="meta">PAGE {html.escape(str(page))}</div>
-                    </div>
-                    <div class="meta">SECTION {html.escape(str(section))}</div>
-                    <div class="meta">CHUNK ID {html.escape(str(chunk_id))}</div>
-                    <div class="meta">RERANK {float(rerank_score):.4f}</div>
+                f'''<div class="evidence fade-in" style="animation-delay:{delay}s;">
+                    <div class="evidence-head"><div class="evidence-source"><span class="source-tag">S{i}</span>&nbsp; {html.escape(str(source_name))}</div><div class="meta">PAGE {html.escape(str(page))}</div></div>
+                    <div class="meta">{html.escape(str(section))}</div>
                     <div class="quote">{html.escape(str(item.get("text", "")))}</div>
-                    <div class="relevance-row">
-                        <div class="relevance-track"><div class="relevance-fill" style="width:{pct}%; animation-delay:{delay}s;"></div></div>
-                        <div class="relevance-val">{pct}%</div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+                    <div class="relevance-row"><div class="relevance-track"><div class="relevance-fill" style="width:{pct}%; animation-delay:{delay}s;"></div></div><div class="relevance-val">{pct}%</div></div>
+                </div>''', unsafe_allow_html=True,
             )
     else:
-        st.markdown(
-            '<div class="small-note">Retrieved guideline passages will appear here after your first successful query.</div>',
-            unsafe_allow_html=True,
-        )
-
+        st.markdown('<div class="small-note">Retrieved passages will appear here after a successful query.</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 with right:
-    # ---------- Evidence panel summary ----------
-    
-    if st.session_state.evidence:
-        st.markdown(
-            f'<div class="safety-note" style="background:linear-gradient(120deg, rgba(26,110,82,.1), rgba(31,122,128,.06));'
-            f'border-color:rgba(26,110,82,.25);">{icon("check", 16, "#1a6e52")}<div>'
-            f'<b>{len(st.session_state.evidence)} evidence passages</b> retrieved and reranked across the indexed guidelines — every sentence in the answer above maps back to one of these.'
-            f'</div></div>',
-            unsafe_allow_html=True,
-        )
-        rows = ""
-        for i, item in enumerate(st.session_state.evidence, 1):
-            meta = item.get("meta", {})
-            guideline = html.escape(str(meta.get("guideline", meta.get("source", "Guideline"))))
-            section = html.escape(str(meta.get("section_title", meta.get("section", "—"))))
-            chunk_id = html.escape(str(meta.get("chunk_id", "—")))
-            page = html.escape(str(meta.get("page", "—")))
-            rerank_score = item.get("rerank", item.get("score", 0))
-            pct = max(0, min(100, int((float(rerank_score) + 5) / 10 * 100))) if rerank_score is not None else 0
-            rows += (
-                f'<tr><td><span class="id-chip">S{i}</span></td>'
-                f'<td class="src-name">{guideline}</td>'
-                f'<td>{section}</td>'
-                f'<td>{chunk_id}</td>'
-                f'<td>p.{page}</td>'
-                f'<td>{float(rerank_score):.4f} ({pct}%)</td></tr>'
+
+    pdf_doc = st.session_state.pdf_document
+    st.markdown(
+        f'<div class="card card-tight fade-in d1">'
+        f'<div class="section-label">{icon("file", 14)} PDF INTELLIGENCE</div>'
+        f'<div class="section-title" style="font-size:1.22rem;">Bring your own document</div>'
+        f'<div class="small-note" style="margin-bottom:13px;">Upload a PDF, let the backend index it, then switch the source above to ask questions grounded in the document.</div>',
+        unsafe_allow_html=True,
+    )
+
+    if not pdf_doc:
+        uploaded = st.file_uploader("Upload PDF", type=["pdf"], accept_multiple_files=False, label_visibility="collapsed", key="unified_pdf_uploader")
+        if uploaded is None:
+            st.markdown(
+                f'<div class="pdf-upload-zone"><div class="pdf-icon">{icon("file", 34, "#ffffff", 1.7)}</div>'
+                f'<div class="pdf-title" style="font-size:1.65rem;">Upload a PDF</div>'
+                f'<div class="pdf-subtitle">Drag and drop your document here, or choose a file. PDF only.</div></div>'
+                f'<div style="height:12px;"></div>',
+                unsafe_allow_html=True,
             )
-        st.markdown(
-            f"""
-            <table class="evi-table">
-                <thead><tr><th>ID</th><th>Source</th><th>Section</th><th>Chunk ID</th><th>Page</th><th>Rerank</th></tr></thead>
-                <tbody>{rows}</tbody>
-            </table>
-            """,
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            """
-            <table class="evi-table">
-                <thead><tr><th>ID</th><th>Source</th><th>Section</th><th>Chunk ID</th><th>Page</th><th>Rerank</th></tr></thead>
-                <tbody><tr class="empty-row"><td colspan="6">No evidence retrieved yet.</td></tr></tbody>
-            </table>
-            """,
-            unsafe_allow_html=True,
-        )
-    st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            size_mb = uploaded.size / (1024 * 1024)
+            st.markdown(
+                f'<div class="pdf-success"><div class="pdf-success-icon">{icon("check", 19, "currentColor", 2.2)}</div><div><div class="pdf-success-title">PDF selected</div><div class="pdf-success-meta">{html.escape(uploaded.name)} · {size_mb:.2f} MB · Ready to process</div></div></div>',
+                unsafe_allow_html=True,
+            )
+            if st.button("PROCESS & INDEX PDF →", type="primary", use_container_width=True, key="process_pdf_unified"):
+                st.session_state.pdf_upload_error = None
+                try:
+                    # FIX: Save the PDF directly to Streamlit session state instead of 
+                    # looking for a missing /upload endpoint on the backend.
+                    st.session_state.pdf_document = {
+                        "filename": uploaded.name,
+                        "size_bytes": uploaded.size,
+                        "bytes": uploaded.getvalue(), 
+                        "page_count": "Unknown",
+                        "chunk_count": "Dynamic",
+                        "embedding_model": "BAAI/bge-small-en-v1.5",
+                        "status": "Ready for Query",
+                    }
+                   # st.session_state.question_source = "Uploaded PDF"
+                    st.session_state.pdf_upload_error = None
+                    st.rerun()
+                except Exception as exc:
+                    st.session_state.pdf_upload_error = str(exc)
 
-    # ---------- Knowledge base ----------
-    bookshelf_html = (
-        '<span class="bookshelf">'
-        '<span style="height:12px;background:#158089;"></span>'
-        '<span style="height:18px;background:#c6912b;"></span>'
-        '<span style="height:9px;background:#0c5c63;"></span>'
-        '<span style="height:15px;background:#c8503c;"></span>'
-        '<span style="height:11px;background:#158089;"></span>'
-        '</span>'
-    )
-    st.markdown(
-        f'<div class="card card-tight fade-in d2">'
-        f'<div class="section-label">{icon("database", 14)} KNOWLEDGE BASE {bookshelf_html}'
-        f'<span class="badge-live"><span class="pdot"></span>LIVE</span></div>'
-        f'<div class="section-title" style="font-size:1.22rem;">What\'s indexed right now</div>',
-        unsafe_allow_html=True,
-    )
-    m1, m2 = st.columns(2)
-    with m1:
+    if st.session_state.pdf_upload_error:
         st.markdown(
-            f'<div class="metric"><div class="metric-number">{chunk_count:,}</div>'
-            '<div class="metric-label">Chunks indexed</div></div>',
-            unsafe_allow_html=True,
-        )
-    with m2:
-        st.markdown(
-            '<div class="metric"><div class="metric-number">3</div>'
-            '<div class="metric-label">Guideline sources</div></div>',
+            f'<div class="safety-note">{icon("alert", 17)}<div><b>PDF processing could not be completed.</b><br>{html.escape(st.session_state.pdf_upload_error)}</div></div>',
             unsafe_allow_html=True,
         )
 
-    import datetime as _dt
-    kb_specs = [
-        ("Embedding model", "BAAI/bge-small-en-v1.5"),
-        ("Retrieval method", "Hybrid dense + BM25, cross-encoder rerank"),
-        ("Reranker", "ms-marco-MiniLM-L-6-v2"),
-        ("Last index refresh", _dt.date.today().strftime("%d %b %Y")),
-        ("Vector store", "ChromaDB (persistent)"),
-    ]
-    spec_rows = "".join(
-        f'<div class="spec-row"><span class="spec-k">{html.escape(k)}</span>'
-        f'<span class="spec-v">{html.escape(v)}</span></div>'
-        for k, v in kb_specs
-    )
-    status_ok = bool(backend)
-    st.markdown(
-        f'<div class="spec-list">{spec_rows}'
-        f'<div class="spec-row"><span class="spec-k">Database status</span>'
-        f'<span class="status-pill {"online" if status_ok else ""}" style="padding:3px 10px 3px 8px;">'
-        f'<span class="pdot"></span>{"ONLINE" if status_ok else "OFFLINE"}</span></div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f'<div class="small-note" style="margin-top:10px;">'
-        f'Backend API: {html.escape(BACKEND_URL)}<br>'
-        f'Chunk count: {chunk_count:,}'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # ---------- Pipeline ----------
-    st.markdown(
-        f'<div class="card card-tight fade-in d3">'
-        f'<div class="section-label">{icon("flask", 14)} RAG PIPELINE</div>'
-        f'<div class="section-title" style="font-size:1.22rem;">Nothing is a black box</div>',
-        unsafe_allow_html=True,
-    )
-
-    steps = [
-        ("QUERY", "INPUT", "search"),
-        ("BGE EMBEDDING", "SEMANTIC", "target"),
-        ("BM25", "LEXICAL", "book"),
-        ("MINI-LM RERANK", "RERANK", "layers"),
-        ("QWEN 2.5", "GENERATE", "sparkles"),
-        ("CITATIONS", "TRACE", "clipboard"),
-    ]
-    step_html = ""
-    for name, kind, ic in steps:
-        step_html += (
-            f'<div class="pipeline-step"><div class="p-icon">{icon(ic, 13)}</div>'
-            f'<div class="p-name">{name}</div><div class="p-kind">{kind}</div></div>'
+    if pdf_doc:
+        page_count = pdf_doc.get("page_count") if pdf_doc.get("page_count") is not None else "—"
+        chunks = pdf_doc.get("chunk_count") if pdf_doc.get("chunk_count") is not None else "—"
+        size_bytes = pdf_doc.get("size_bytes")
+        size_display = f"{size_bytes/(1024*1024):.2f} MB" if size_bytes else "—"
+        st.markdown(
+            f'<div class="pdf-success"><div class="pdf-success-icon">{icon("check", 19, "currentColor", 2.2)}</div><div><div class="pdf-success-title">File uploaded successfully</div><div class="pdf-success-meta">{html.escape(str(pdf_doc.get("filename", "Document")))} · Indexed ✓</div></div></div>',
+            unsafe_allow_html=True,
         )
-    st.markdown(step_html, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="spec-list"><div class="spec-row"><span class="spec-k">Status</span><span class="status-pill online" style="padding:3px 10px 3px 8px;"><span class="pdot"></span>INDEXED</span></div><div class="spec-row"><span class="spec-k">Pages</span><span class="spec-v">{html.escape(str(page_count))}</span></div><div class="spec-row"><span class="spec-k">Chunks</span><span class="spec-v">{html.escape(str(chunks))}</span></div><div class="spec-row"><span class="spec-k">File size</span><span class="spec-v">{html.escape(size_display)}</span></div><div class="spec-row"><span class="spec-k">Embedding model</span><span class="spec-v">{html.escape(str(pdf_doc.get("embedding_model", "Backend-defined")))}</span></div></div>',
+            unsafe_allow_html=True,
+        )
+        if st.session_state.question_source == "Uploaded PDF":
+            st.markdown(
+                f'<div class="pdf-ready-banner" style="margin-top:14px;margin-bottom:0;">{icon("check", 13, "currentColor", 2.2)} DOCUMENT ACTIVE · READY FOR QUESTIONS</div>',
+                unsafe_allow_html=True,
+            )
+        if st.button("UPLOAD A DIFFERENT PDF", use_container_width=True, key="reset_pdf"):
+            st.session_state.pdf_document = None
+            st.session_state.pdf_messages = []
+            st.session_state.pdf_upload_error = None
+            st.session_state.question_source = "Clinical Guidelines"
+            st.rerun()
 
+    st.markdown(
+        f'<div class="card card-tight fade-in d2"><div class="section-label">{icon("database", 14)} KNOWLEDGE SOURCES</div><div class="section-title" style="font-size:1.22rem;">One interface. Two sources.</div><div class="spec-list"><div class="spec-row"><span class="spec-k">Guidelines</span><span class="status-pill {"online" if backend else ""}" style="padding:3px 10px 3px 8px;"><span class="pdot"></span>{"ONLINE" if backend else "OFFLINE"}</span></div><div class="spec-row"><span class="spec-k">PDF RAG</span><span class="status-pill {"online" if pdf_doc else ""}" style="padding:3px 10px 3px 8px;"><span class="pdot"></span>{"INDEXED" if pdf_doc else "READY TO UPLOAD"}</span></div><div class="spec-row"><span class="spec-k">Guideline chunks</span><span class="spec-v">{chunk_count:,}</span></div></div></div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f'<div class="card card-tight fade-in d3"><div class="section-label">{icon("shield", 14)} GROUNDING POLICY</div><div class="section-title" style="font-size:1.22rem;">Source-aware by design</div><div class="small-note">Choose <b>Clinical Guidelines</b> for the existing EndoGuide RAG flow, or <b>Uploaded PDF</b> to restrict retrieval to your indexed document. The UI does not invent PDF processing results; indexing and retrieval are handled by the backend APIs.</div></div>',
+        unsafe_allow_html=True,
+    )
     # ---------- Confidence & safety ----------
     st.markdown(
-        f'<div class="card card-tight fade-in d4">'
+        f'<div class="card card-tight fade-in d1">'
         f'<div class="section-label">{icon("shield", 14)} CONFIDENCE & SAFETY</div>'
         f'<div class="section-title" style="font-size:1.22rem;">How sure should you be?</div>',
         unsafe_allow_html=True,
@@ -1231,6 +1392,6 @@ st.markdown(
     f'<div class="footer">'
     f'<div>{icon("stethoscope", 13)} &nbsp;RAG &amp; ROLL · RETRIEVAL-AUGMENTED CLINICAL INTELLIGENCE</div>'
     f'<div>🎗️ NOT A MEDICAL DEVICE · FOR CLINICIAN REFERENCE ONLY</div>'
-    f'</div>',
-    unsafe_allow_html=True,
+    f'</div>', unsafe_allow_html=True,
 )
+

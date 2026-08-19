@@ -3,9 +3,8 @@ Run with:
     uvicorn main:app --host 0.0.0.0 --port 8000
 """
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from typing import Optional
 from rag import INDEX_READY, STARTUP_ERROR, collection, rag_pipeline
 
 app = FastAPI(
@@ -13,12 +12,6 @@ app = FastAPI(
     description="RAG API for NICE Endometriosis Guidelines",
     version="1.0.0",
 )
-
-
-class ChatRequest(BaseModel):
-    question: str
-
-
 @app.get("/")
 def root():
     return {
@@ -30,36 +23,49 @@ def root():
 
 
 @app.post("/chat")
-def chat(request: ChatRequest):
-    if not request.question.strip():
-        raise HTTPException(status_code=400, detail="Question cannot be empty")
+async def chat_endpoint(
+    # FIX: Use Form() for the text and File() for the document
+    # Setting default values to "" and None makes them optional
+    question: str = Form(""), 
+    pdf_file: Optional[UploadFile] = File(None)
+):
+    try:
+        pdf_bytes = None
+        pdf_name = None
+        
+        # If a file was attached, read its bytes
+        if pdf_file is not None:
+            pdf_bytes = await pdf_file.read()
+            pdf_name = pdf_file.filename
 
-    if not INDEX_READY:
-        raise HTTPException(
-            status_code=503,
-            detail=STARTUP_ERROR or "RAG index is not available. Run the indexing pipeline first.",
+        # Pass the extracted data to your RAG pipeline
+        answer, prompt, results = rag_pipeline(
+            query=question,
+            uploaded_pdf_bytes=pdf_bytes,
+            uploaded_pdf_name=pdf_name
         )
 
-    try:
-        answer, prompt, results = rag_pipeline(request.question)
+        # Format the evidence to send back to Streamlit
+        sources = []
+        for res in results:
+            sources.append({
+                "text": res.get("text", ""),
+                "guideline": res.get("guideline", "Unknown"),
+                "section": res.get("section", "Unknown"),
+                "page": res.get("page", "Unknown"),
+                "chunk_id": res.get("chunk_id", "Unknown"),
+                "rerank_score": res.get("rerank_score", 0.0)
+            })
 
-        confidence = 0.0
-        if results:
-            top_result = results[0]
-            rerank_score = float(top_result.get("rerank_score", 0.0))
-            confidence = max(0.0, min(1.0, (rerank_score + 5.0) / 10.0))
-
-            chroma_distance = top_result.get("chroma_distance")
-            if chroma_distance is not None:
-                distance_confidence = max(0.0, min(1.0, 1.0 - float(chroma_distance)))
-                confidence = max(confidence, distance_confidence)
+        # Calculate a mock confidence score based on the top rerank score
+        top_score = results[0].get("rerank_score", 0.0) if results else -2.0
+        confidence = max(0.0, min(1.0, (top_score + 2) / 4)) if results else 0.0
 
         return {
             "answer": answer,
-            "sources": results,
-            "prompt": prompt,
-            "confidence": confidence,
-            "chunk_count": collection.count() if collection is not None else 0,
+            "sources": sources,
+            "confidence": confidence
         }
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"answer": f"Error: {str(e)}", "sources": [], "confidence": 0.0}
