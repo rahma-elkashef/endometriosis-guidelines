@@ -18,7 +18,7 @@ import requests
 # ============================================================
 
 st.set_page_config(
-    page_title="RAG & Roll — Endometriosis Clinical Evidence Intelligence",
+    page_title="EndoGuide — Endometriosis Clinical Evidence Intelligence",
     page_icon="🎗️",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -832,7 +832,7 @@ with logo_col:
 with brand_col:
     st.markdown(
         f'<div class="kicker"><span class="dot"></span>CLINICAL DECISION SUPPORT · ENDOMETRIOSIS RAG</div>'
-        f'<h1 class="brand">RAG <span class="amp">&amp;</span> Roll</h1>'
+        f'<h1 class="brand">EndoGuide</h1>'
         f'<div class="tagline">Evidence you can trust. <span class="accent">Answers you can cite.</span></div>',
         unsafe_allow_html=True,
     )

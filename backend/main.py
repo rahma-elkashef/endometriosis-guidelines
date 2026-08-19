@@ -6,7 +6,7 @@ Run with:
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from rag import INDEX_READY, STARTUP_ERROR, collection, rag_pipeline
+from backend.rag import INDEX_READY, STARTUP_ERROR, collection, rag_pipeline
 
 app = FastAPI(
     title="Endometriosis Guideline Assistant",
