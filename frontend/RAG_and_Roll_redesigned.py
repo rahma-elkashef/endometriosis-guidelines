@@ -6,6 +6,7 @@ import pickle
 import html
 import hashlib
 import streamlit as st
+import requests
 
 # ============================================================
 # RAG & ROLL
@@ -28,6 +29,7 @@ st.set_page_config(
 # -----------------------------
 BASE = "/content"
 LOGO_PATH = os.path.join(BASE, "logo.png")
+BACKEND_URL = os.getenv("RAG_BACKEND_URL", "http://127.0.0.1:8000")
 
 # Background photo: drop a file named bg.jpg / bg.png (or background.*)
 # into any of these locations and it will be picked up automatically,
@@ -728,28 +730,17 @@ if BG_URI:
 # -----------------------------
 @st.cache_resource(show_spinner=False)
 def load_backend():
-    if not CHROMA_PATH or not BM25_FILE:
-        return None, "RAG index not found."
-
     try:
-        import chromadb
-        from sentence_transformers import SentenceTransformer, CrossEncoder
+        response = requests.get(BACKEND_URL + "/", timeout=5)
+        response.raise_for_status()
+        payload = response.json()
 
-        client = chromadb.PersistentClient(path=CHROMA_PATH)
-        collection = client.get_collection(name="nice_guidelines")
-
-        with open(BM25_FILE, "rb") as f:
-            bm25 = pickle.load(f)
-
-        embedder = SentenceTransformer("BAAI/bge-small-en-v1.5")
-        reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+        if not payload.get("index_ready", False):
+            return None, payload.get("startup_error") or "RAG index is not ready."
 
         return {
-            "client": client,
-            "collection": collection,
-            "bm25": bm25,
-            "embedder": embedder,
-            "reranker": reranker,
+            "api_url": BACKEND_URL,
+            "chunk_count": payload.get("chunk_count", 0),
         }, None
     except Exception as e:
         return None, str(e)
@@ -759,7 +750,7 @@ backend, backend_error = load_backend()
 
 if backend:
     try:
-        chunk_count = backend["collection"].count()
+        chunk_count = int(backend.get("chunk_count", 0))
     except Exception:
         chunk_count = 0
 else:
@@ -855,6 +846,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
 # Signature ECG divider
 st.markdown(
     """
@@ -877,7 +869,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------- Pipeline status pills (retrieval / reasoning / active / index) ----------
 index_label = f"INDEX: {chunk_count:,} CHUNKS" if backend else "INDEX: UNAVAILABLE"
 live_class = "live" if backend else "live offline"
 live_word = "LIVE" if backend else "OFFLINE"
@@ -889,16 +880,13 @@ st.markdown(
         <span class="pipe-pill dark">{icon("search", 13, "#ffffff")}&nbsp;Retrieval</span>
         <span class="pipe-arrow">→</span>
         <span class="pipe-pill outline">{icon("sparkles", 13)}&nbsp;Reasoning</span>
-        <span class="pipe-pill green">{icon("activity", 13)}&nbsp;Active pipeline <span class="pipe-checks">{checks}</span></span>
+        <span class="pipe-pill green">{icon("activity", 13)}&nbsp;Backend API <span class="pipe-checks">{checks}</span></span>
         <span class="pipe-pill {live_class}"><span class="pdot"></span>{index_label} — {live_word}</span>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-# ============================================================
-# Main columns
-# ============================================================
 left, right = st.columns([2.05, 1], gap="large")
 
 with left:
@@ -917,42 +905,8 @@ with left:
         key="query_input",
     )
 
-    suggestions = [
-        ("🩺", "Common symptoms?"),
-        ("🔬", "How is it diagnosed?"),
-        ("🖥️", "When is MRI indicated?"),
-        ("💊", "Recommended pain treatments?"),
-    ]
-
-    st.markdown(
-        f'<div class="section-label" style="margin-top:2px;">{icon("sparkles", 13)} TRY ASKING</div>',
-        unsafe_allow_html=True,
-    )
-    with st.container(key="suggestion_chips"):
-        cols = st.columns(len(suggestions))
-        for i, (emo, suggestion) in enumerate(suggestions):
-            with cols[i]:
-                if st.button(f"{emo}  {suggestion}", key=f"suggestion_{i}", use_container_width=True):
-                    st.session_state.query = suggestion
-                    st.rerun()
-
-    if st.session_state.history:
-        recent = list(reversed(st.session_state.history))[:4]
-        chips = " &nbsp; ".join(
-            f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:.72rem;'
-            f'color:var(--teal-2);background:rgba(31,122,128,.08);border:1px solid rgba(31,122,128,.18);'
-            f'border-radius:999px;padding:4px 10px;">{html.escape(h["query"][:40])}</span>'
-            for h in recent
-        )
-        st.markdown(
-            f'<div style="margin-top:4px;">'
-            f'<div class="section-label" style="margin-top:10px;">{icon("history", 13)} RECENT</div>'
-            f'<div>{chips}</div></div>',
-            unsafe_allow_html=True,
-        )
-
     ask = st.button(
-        f"ASK THE GUIDELINES  →",
+        "ASK THE GUIDELINES →",
         type="primary",
         use_container_width=True,
         disabled=not bool(backend),
@@ -961,181 +915,46 @@ with left:
     if not backend:
         st.markdown(
             f'<div class="safety-note">{icon("alert", 18)}<div>'
-            f'The interface is ready, but the retrieval index is not available in this session.<br>'
-            f'Expected ChromaDB: <code>/content/data/chromadb</code> · '
-            f'Expected BM25: <code>/content/data/chunks/nice_bm25.pkl</code></div></div>',
+            f'The backend API is not available in this session.<br>'
+            f'{html.escape(backend_error or "Start the FastAPI server at http://127.0.0.1:8000")}</div></div>',
             unsafe_allow_html=True,
         )
 
-    st.markdown('</div>', unsafe_allow_html=True)  # close query card
+    st.markdown('</div>', unsafe_allow_html=True)
 
     if ask and query.strip():
         st.session_state.query = query.strip()
 
         with st.spinner("Retrieving guideline evidence and generating a grounded response…"):
             try:
-                import numpy as np
-
-                q = query.strip()
-
-                # Dense retrieval
-                q_emb = backend["embedder"].encode(
-                    [q],
-                    normalize_embeddings=True
-                )[0].tolist()
-
-                dense = backend["collection"].query(
-                    query_embeddings=[q_emb],
-                    n_results=12,
-                    include=["documents", "metadatas", "distances"],
+                response = requests.post(
+                    BACKEND_URL + "/chat",
+                    json={"question": query.strip()},
+                    timeout=180,
                 )
+                response.raise_for_status()
+                payload = response.json()
 
-                dense_items = []
-                docs = dense.get("documents", [[]])[0]
-                metas = dense.get("metadatas", [[]])[0]
-                distances = dense.get("distances", [[]])[0]
-
-                for d, m, dist in zip(docs, metas, distances):
-                    dense_items.append({
-                        "text": d,
-                        "meta": m or {},
-                        "score": 1.0 - float(dist),
+                sources = payload.get("sources", []) or []
+                evidence = []
+                for source in sources[:5]:
+                    evidence.append({
+                        "text": source.get("text", ""),
+                        "meta": source,
+                        "rerank": float(source.get("rerank_score", 0.0)),
+                        "score": float(source.get("rerank_score", source.get("bm25_score", 0.0)) or 0.0),
                     })
 
-                # BM25 retrieval
-                tokens = re.findall(r"\w+", q.lower())
-                bm_scores = backend["bm25"].get_scores(tokens)
-                top_idx = np.argsort(bm_scores)[::-1][:12]
-
-                bm_items = []
-                corpus = getattr(backend["bm25"], "corpus", None)
-
-                for idx in top_idx:
-                    score = float(bm_scores[idx])
-                    if corpus and idx < len(corpus):
-                        text = " ".join(corpus[idx]) if isinstance(corpus[idx], list) else str(corpus[idx])
-                        bm_items.append({"text": text, "meta": {}, "score": score})
-
-                # Fuse unique text candidates
-                candidates = {}
-                for item in dense_items + bm_items:
-                    key = re.sub(r"\s+", " ", item["text"]).strip()
-                    if not key:
-                        continue
-                    if key not in candidates or item["score"] > candidates[key]["score"]:
-                        candidates[key] = item
-
-                candidates = list(candidates.values())[:20]
-
-                # CrossEncoder reranking
-                if candidates:
-                    pairs = [[q, c["text"]] for c in candidates]
-                    rr = backend["reranker"].predict(pairs)
-
-                    for c, score in zip(candidates, rr):
-                        c["rerank"] = float(score)
-
-                    candidates.sort(key=lambda x: x["rerank"], reverse=True)
-
-                evidence = candidates[:5]
-
-                # Try generation using the original Qwen stack if available.
-                generated = None
-                try:
-                    from transformers import AutoTokenizer, AutoModelForCausalLM
-                    import torch
-
-                    @st.cache_resource(show_spinner=False)
-                    def load_llm():
-                        model_name = "Qwen/Qwen2.5-1.5B-Instruct"
-                        tok = AutoTokenizer.from_pretrained(model_name)
-                        model = AutoModelForCausalLM.from_pretrained(
-                            model_name,
-                            torch_dtype="auto",
-                            device_map="auto",
-                        )
-                        return tok, model
-
-                    tokenizer, model = load_llm()
-
-                    context_parts = []
-                    for i, item in enumerate(evidence, 1):
-                        m = item.get("meta", {})
-                        context_parts.append(
-                            f"[S{i}] {m.get('guideline', m.get('source', 'Guideline'))} | "
-                            f"{m.get('section_title', m.get('section', ''))} | "
-                            f"page {m.get('page', '?')}\n{item['text']}"
-                        )
-
-                    context = "\n\n".join(context_parts)
-
-                    prompt = f"""
-You are a clinical evidence assistant.
-
-Answer the question using ONLY the supplied guideline evidence.
-Do not invent facts.
-Use [S1], [S2], etc. for claims supported by the evidence.
-If the evidence is insufficient, say so.
-
-Question:
-{q}
-
-Guideline evidence:
-{context}
-
-Answer:
-""".strip()
-
-                    messages = [
-                        {"role": "system", "content": "You are a careful, evidence-grounded clinical reference assistant."},
-                        {"role": "user", "content": prompt},
-                    ]
-
-                    text = tokenizer.apply_chat_template(
-                        messages,
-                        tokenize=False,
-                        add_generation_prompt=True,
-                    )
-
-                    inputs = tokenizer(text, return_tensors="pt").to(model.device)
-
-                    with torch.no_grad():
-                        output = model.generate(
-                            **inputs,
-                            max_new_tokens=420,
-                            do_sample=False,
-                        )
-
-                    generated = tokenizer.decode(
-                        output[0][inputs["input_ids"].shape[1]:],
-                        skip_special_tokens=True,
-                    ).strip()
-
-                except Exception as llm_error:
-                    generated = (
-                        "The retrieval stage completed, but the generation model could not be loaded "
-                        f"in this session. Retrieved evidence is shown below.\n\n"
-                        f"Generation detail: {llm_error}"
-                    )
-
-                st.session_state.answer = generated
+                st.session_state.answer = payload.get("answer", "")
                 st.session_state.evidence = evidence
-
-                if evidence:
-                    top_scores = [x.get("rerank", 0.0) for x in evidence]
-                    conf = max(0.0, min(1.0, (max(top_scores) + 5) / 10))
-                else:
-                    conf = 0.0
-
-                st.session_state.confidence = conf
-                st.session_state.history.append({"query": q, "confidence": conf})
+                st.session_state.confidence = float(payload.get("confidence", 0.0))
+                st.session_state.history.append({"query": query.strip(), "confidence": st.session_state.confidence})
 
             except Exception as e:
                 st.session_state.answer = f"Retrieval error: {e}"
                 st.session_state.evidence = []
                 st.session_state.confidence = 0.0
 
-    # ---------- Answer ----------
     st.markdown(
         f'<div class="card fade-in d2">'
         f'<div class="section-label">{icon("sparkles", 14)} 02 · GENERATED ANSWER</div>'
@@ -1147,7 +966,6 @@ Answer:
         escaped_answer = html.escape(st.session_state.answer).replace(chr(10), "<br>")
         st.markdown(f'<div class="answer-box">{escaped_answer}</div>', unsafe_allow_html=True)
 
-        # Copy-to-clipboard control
         copy_payload = json.dumps(st.session_state.answer)
         btn_id = "copybtn_" + hashlib.md5(st.session_state.answer.encode("utf-8")).hexdigest()[:8]
         st.markdown(
@@ -1167,15 +985,12 @@ Answer:
     else:
         st.markdown(
             f'<div class="safety-note">{icon("sparkles", 18)}<div>'
-            f'<b>No answer yet.</b> Ask a clinical question above — RAG &amp; Roll will retrieve the most '
-            f'relevant guideline passages, rerank them for precision, and generate a response that never '
-            f'strays past the cited evidence.</div></div>',
+            f'<b>No answer yet.</b> Ask a clinical question above and the backend will return the answer plus evidence.</div></div>',
             unsafe_allow_html=True,
         )
 
-    st.markdown('</div>', unsafe_allow_html=True)  # close answer card
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ---------- Supporting evidence ----------
     st.markdown(
         f'<div class="card fade-in d3">'
         f'<div class="section-label">{icon("layers", 14)} 03 · SUPPORTING EVIDENCE</div>'
@@ -1212,12 +1027,11 @@ Answer:
             )
     else:
         st.markdown(
-            '<div class="small-note">Retrieved guideline passages will appear here after your first '
-            'successful query.</div>',
+            '<div class="small-note">Retrieved guideline passages will appear here after your first successful query.</div>',
             unsafe_allow_html=True,
         )
 
-    st.markdown('</div>', unsafe_allow_html=True)  # close evidence card
+    st.markdown('</div>', unsafe_allow_html=True)
 
 with right:
     # ---------- Evidence panel summary ----------
@@ -1324,8 +1138,8 @@ with right:
     )
     st.markdown(
         f'<div class="small-note" style="margin-top:10px;">'
-        f'Chroma: {html.escape(CHROMA_PATH or "not found")}<br>'
-        f'BM25: {html.escape(BM25_FILE or "not found")}'
+        f'Backend API: {html.escape(BACKEND_URL)}<br>'
+        f'Chunk count: {chunk_count:,}'
         f'</div>',
         unsafe_allow_html=True,
     )

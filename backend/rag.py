@@ -206,29 +206,70 @@ Do not continue writing after the disclaimer.
 # LOAD RESOURCES (module-level, loaded once on import)
 # ============================================================
 
-print("Loading ChromaDB...")
-_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
-collection = _client.get_collection(name=COLLECTION_NAME)
-print(f"✓ ChromaDB loaded ({collection.count()} documents)")
+_client = None
+collection = None
+bm25 = None
+embed_model = None
+reranker = None
+tokenizer = None
+llm = None
 
-print("Loading BM25 index...")
-with open(BM25_FILE, "rb") as f:
-    bm25 = pickle.load(f)
-print("✓ BM25 loaded")
+INDEX_READY = False
+STARTUP_ERROR = None
 
-print("Loading embedding model...")
-embed_model = SentenceTransformer(EMBED_MODEL_NAME)
-print("✓ Embedding model loaded")
+try:
+    print("Loading ChromaDB...")
+    _client = chromadb.PersistentClient(path=str(CHROMA_PATH))
+    try:
+        collection = _client.get_collection(name=COLLECTION_NAME)
+        print(f"✓ ChromaDB loaded ({collection.count()} documents)")
+    except Exception as exc:
+        STARTUP_ERROR = f"ChromaDB collection '{COLLECTION_NAME}' is missing: {exc}"
+        print(f"⚠ {STARTUP_ERROR}")
 
-print("Loading reranker...")
-reranker = CrossEncoder(RERANKER_NAME)
-print(f"✓ Reranker loaded: {RERANKER_NAME}")
+    print("Loading BM25 index...")
+    if BM25_FILE.exists():
+        with open(BM25_FILE, "rb") as f:
+            bm25 = pickle.load(f)
+        print("✓ BM25 loaded")
+    else:
+        if STARTUP_ERROR is None:
+            STARTUP_ERROR = f"BM25 index not found at {BM25_FILE}"
+        print(f"⚠ {STARTUP_ERROR}")
 
-print("Loading LLM...")
-tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_NAME)
-llm = AutoModelForCausalLM.from_pretrained(LLM_MODEL_NAME, torch_dtype=torch.float32)
-llm.eval()
-print("✓ LLM loaded")
+    print("Loading embedding model...")
+    try:
+        embed_model = SentenceTransformer(EMBED_MODEL_NAME)
+        print("✓ Embedding model loaded")
+    except Exception as exc:
+        if STARTUP_ERROR is None:
+            STARTUP_ERROR = f"Embedding model failed to load: {exc}"
+        print(f"⚠ {STARTUP_ERROR}")
+
+    print("Loading reranker...")
+    try:
+        reranker = CrossEncoder(RERANKER_NAME)
+        print(f"✓ Reranker loaded: {RERANKER_NAME}")
+    except Exception as exc:
+        if STARTUP_ERROR is None:
+            STARTUP_ERROR = f"Reranker failed to load: {exc}"
+        print(f"⚠ {STARTUP_ERROR}")
+
+    print("Loading LLM...")
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_NAME)
+        llm = AutoModelForCausalLM.from_pretrained(LLM_MODEL_NAME, torch_dtype=torch.float32)
+        llm.eval()
+        print("✓ LLM loaded")
+    except Exception as exc:
+        if STARTUP_ERROR is None:
+            STARTUP_ERROR = f"LLM failed to load: {exc}"
+        print(f"⚠ {STARTUP_ERROR}")
+
+    INDEX_READY = collection is not None and bm25 is not None
+except Exception as exc:
+    STARTUP_ERROR = str(exc)
+    print(f"⚠ Startup failed: {STARTUP_ERROR}")
 
 
 # ============================================================
@@ -261,6 +302,9 @@ def retrieve(query, top_k=5, candidate_k=50, min_score=None, max_distance=None, 
         min_score = MIN_RERANK_SCORE
     if max_distance is None:
         max_distance = MAX_CHROMA_DISTANCE
+
+    if collection is None or bm25 is None or embed_model is None or reranker is None:
+        return []
 
     # --- 1. Dense retrieval ---
     query_embedding = embed_model.encode(
@@ -457,6 +501,18 @@ Citation:
 None.
 """
 
+    if tokenizer is None or llm is None:
+        return """
+Recommendation:
+Evidence is insufficient in the retrieved guidelines.
+
+Confidence and safety:
+Low confidence. The generation model is unavailable in this session.
+
+Citation:
+None.
+"""
+
     user_prompt = build_prompt(query, results)
 
     messages = [
@@ -488,18 +544,18 @@ def rag_pipeline(query, top_k=5):
     Run the full pipeline: retrieve -> build prompt -> generate answer.
 
     Returns:
-        (answer, prompt) tuple, matching what main.py expects.
+        (answer, prompt, results) tuple.
     """
     results = retrieve(query, top_k=top_k)
     prompt = build_prompt(query, results)
     answer = generate_answer(query, results)
-    return answer, prompt
+    return answer, prompt, results
 
 
 if __name__ == "__main__":
     # Quick manual smoke test: python rag.py
     test_query = "What imaging should be offered to someone with suspected endometriosis?"
-    ans, ctx = rag_pipeline(test_query)
+    ans, ctx, results = rag_pipeline(test_query)
     print("\n" + "=" * 80)
     print("ANSWER")
     print("=" * 80)

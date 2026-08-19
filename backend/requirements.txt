@@ -8,3 +8,6 @@ pillow
 pdf2image
 fastapi
 gradio
+uvicorn
+requests
+streamlit
