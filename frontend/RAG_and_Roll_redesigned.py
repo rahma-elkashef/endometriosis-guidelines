@@ -584,6 +584,7 @@ div[data-testid="stTextInput"] input {
     border:1px solid rgba(19,46,51,.18) !important;
     padding:14px !important;
     background:rgba(255,255,255,.94) !important;
+    color:#000 !important;
     font-size:.98rem !important;
     transition:box-shadow .2s ease, border-color .2s ease;
 }
@@ -965,23 +966,6 @@ with left:
     if st.session_state.answer:
         escaped_answer = html.escape(st.session_state.answer).replace(chr(10), "<br>")
         st.markdown(f'<div class="answer-box">{escaped_answer}</div>', unsafe_allow_html=True)
-
-        copy_payload = json.dumps(st.session_state.answer)
-        btn_id = "copybtn_" + hashlib.md5(st.session_state.answer.encode("utf-8")).hexdigest()[:8]
-        st.markdown(
-            f"""
-            <button class="copy-btn" id="{btn_id}" onclick="
-                navigator.clipboard.writeText({copy_payload});
-                this.classList.add('copied');
-                this.innerHTML = '{icon("check", 13)} Copied';
-                setTimeout(() => {{
-                    this.classList.remove('copied');
-                    this.innerHTML = '{icon("clipboard", 13)} Copy answer';
-                }}, 1800);
-            ">{icon("clipboard", 13)} Copy answer</button>
-            """,
-            unsafe_allow_html=True,
-        )
     else:
         st.markdown(
             f'<div class="safety-note">{icon("sparkles", 18)}<div>'
@@ -1003,9 +987,10 @@ with left:
             meta = item.get("meta", {})
             guideline = meta.get("guideline", meta.get("source", "Guideline"))
             section = meta.get("section_title", meta.get("section", "Clinical evidence"))
+            chunk_id = meta.get("chunk_id", "—")
             page = meta.get("page", "—")
-            score = item.get("rerank", item.get("score", 0))
-            pct = max(0, min(100, int((float(score) + 5) / 10 * 100))) if score is not None else 0
+            rerank_score = item.get("rerank", item.get("score", 0))
+            pct = max(0, min(100, int((float(rerank_score) + 5) / 10 * 100))) if rerank_score is not None else 0
 
             delay = 0.05 * (i - 1)
             st.markdown(
@@ -1015,7 +1000,9 @@ with left:
                         <div class="evidence-source"><span class="source-tag">S{i}</span>&nbsp; {html.escape(str(guideline))}</div>
                         <div class="meta">PAGE {html.escape(str(page))}</div>
                     </div>
-                    <div class="meta">{html.escape(str(section))}</div>
+                    <div class="meta">SECTION {html.escape(str(section))}</div>
+                    <div class="meta">CHUNK ID {html.escape(str(chunk_id))}</div>
+                    <div class="meta">RERANK {float(rerank_score):.4f}</div>
                     <div class="quote">{html.escape(str(item.get("text", "")))}</div>
                     <div class="relevance-row">
                         <div class="relevance-track"><div class="relevance-fill" style="width:{pct}%; animation-delay:{delay}s;"></div></div>
@@ -1035,12 +1022,7 @@ with left:
 
 with right:
     # ---------- Evidence panel summary ----------
-    st.markdown(
-        f'<div class="card card-tight fade-in d1">'
-        f'<div class="section-label">{icon("file", 14)} EVIDENCE PANEL</div>'
-        f'<div class="section-title" style="font-size:1.22rem;">Zero-hallucination by design</div>',
-        unsafe_allow_html=True,
-    )
+    
     if st.session_state.evidence:
         st.markdown(
             f'<div class="safety-note" style="background:linear-gradient(120deg, rgba(26,110,82,.1), rgba(31,122,128,.06));'
@@ -1053,19 +1035,23 @@ with right:
         for i, item in enumerate(st.session_state.evidence, 1):
             meta = item.get("meta", {})
             guideline = html.escape(str(meta.get("guideline", meta.get("source", "Guideline"))))
+            section = html.escape(str(meta.get("section_title", meta.get("section", "—"))))
+            chunk_id = html.escape(str(meta.get("chunk_id", "—")))
             page = html.escape(str(meta.get("page", "—")))
-            score = item.get("rerank", item.get("score", 0))
-            pct = max(0, min(100, int((float(score) + 5) / 10 * 100))) if score is not None else 0
+            rerank_score = item.get("rerank", item.get("score", 0))
+            pct = max(0, min(100, int((float(rerank_score) + 5) / 10 * 100))) if rerank_score is not None else 0
             rows += (
                 f'<tr><td><span class="id-chip">S{i}</span></td>'
                 f'<td class="src-name">{guideline}</td>'
+                f'<td>{section}</td>'
+                f'<td>{chunk_id}</td>'
                 f'<td>p.{page}</td>'
-                f'<td>{pct}%</td></tr>'
+                f'<td>{float(rerank_score):.4f} ({pct}%)</td></tr>'
             )
         st.markdown(
             f"""
             <table class="evi-table">
-                <thead><tr><th>ID</th><th>Source</th><th>Page</th><th>Relevance</th></tr></thead>
+                <thead><tr><th>ID</th><th>Source</th><th>Section</th><th>Chunk ID</th><th>Page</th><th>Rerank</th></tr></thead>
                 <tbody>{rows}</tbody>
             </table>
             """,
@@ -1075,8 +1061,8 @@ with right:
         st.markdown(
             """
             <table class="evi-table">
-                <thead><tr><th>ID</th><th>Source</th><th>Page</th><th>Relevance</th></tr></thead>
-                <tbody><tr class="empty-row"><td colspan="4">No evidence retrieved yet.</td></tr></tbody>
+                <thead><tr><th>ID</th><th>Source</th><th>Section</th><th>Chunk ID</th><th>Page</th><th>Rerank</th></tr></thead>
+                <tbody><tr class="empty-row"><td colspan="6">No evidence retrieved yet.</td></tr></tbody>
             </table>
             """,
             unsafe_allow_html=True,
