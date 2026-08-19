@@ -1,5 +1,90 @@
 import gradio as gr
+import requests
 import json
+
+API_BASE_URL = "https://YOUR-NGROK-URL.ngrok-free.app"
+def ask_question(question):
+
+    if not question.strip():
+        return "Please enter a question.", ""
+
+    try:
+
+        response = requests.post(
+            f"{API_BASE_URL}/chat",
+            json={
+                "question": question
+            },
+            timeout=120
+        )
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        answer = data.get(
+            "answer",
+            "No answer returned."
+        )
+
+        evidence = format_evidence(data)
+
+        return answer, evidence
+
+    except requests.exceptions.RequestException as e:
+
+        return (
+            "❌ Could not connect to the FastAPI backend.",
+            f"```text\n{str(e)}\n```"
+        )
+# =========================
+# Medical Report PDF
+# =========================
+
+def analyze_report(pdf_file):
+
+    if pdf_file is None:
+        return "Please upload a PDF.", ""
+
+    try:
+
+        with open(pdf_file, "rb") as f:
+
+            files = {
+                "file": (
+                    pdf_file,
+                    f,
+                    "application/pdf"
+                )
+            }
+
+            response = requests.post(
+                f"{API_BASE_URL}/chat-with-report",
+                files=files,
+                timeout=180
+            )
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        answer = data.get(
+            "answer",
+            "No answer returned."
+        )
+
+        evidence = format_evidence(data)
+
+        return answer, evidence
+
+    except requests.exceptions.RequestException as e:
+
+        return (
+            "❌ Could not connect to the FastAPI backend.",
+            f"```text\n{str(e)}\n```"
+        )
+
+
 
 def rag_interface(question, pdf_file):
     # Case 1: User uploaded a medical report
@@ -67,7 +152,6 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         inputs=[input_text, file_upload],
         outputs=[output_answer, output_evidence]
     )
-
     clear_btn.click(lambda: [None, None, None, None], None, [input_text, file_upload, output_answer, output_evidence])
 
 demo.launch(quiet=True)
