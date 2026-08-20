@@ -858,6 +858,8 @@ if "pdf_upload_error" not in st.session_state:
     st.session_state.pdf_upload_error = None
 if "question_source" not in st.session_state:
     st.session_state.question_source = "Clinical Guidelines"
+if "pdf_mode_pending" not in st.session_state:
+    st.session_state.pdf_mode_pending = False
 
 def upload_pdf_to_backend(uploaded_file):
     """Send the selected PDF to the PDF Intelligence backend.
@@ -1011,7 +1013,16 @@ st.markdown(
 
 source_options = ["Clinical Guidelines"]
 if st.session_state.pdf_document:
-    source_options.append("Uploaded PDF")
+    source_options.append("Clinical Guidelines + PDF")
+
+# Normalize the stored value before the radio widget is instantiated.
+if st.session_state.question_source == "Uploaded PDF":
+    st.session_state.question_source = "Clinical Guidelines + PDF"
+if st.session_state.pdf_mode_pending and st.session_state.pdf_document:
+    st.session_state.question_source = "Clinical Guidelines + PDF"
+    st.session_state.pdf_mode_pending = False
+if st.session_state.question_source not in source_options:
+    st.session_state.question_source = "Clinical Guidelines"
 
 st.radio(
     "Question source",
@@ -1022,7 +1033,7 @@ st.radio(
 )
 
 using_pdf = (
-    st.session_state.question_source == "Uploaded PDF"
+    st.session_state.question_source == "Clinical Guidelines + PDF"
     and bool(st.session_state.pdf_document)
 )
 
@@ -1030,11 +1041,11 @@ left, right = st.columns([2.05, 1], gap="large")
 
 with left:
     source_label = (
-        f'PDF · {st.session_state.pdf_document.get("filename", "Uploaded document")}'
+        f'GUIDELINES + PDF · {st.session_state.pdf_document.get("filename", "Uploaded document")}'
         if using_pdf else "NICE / ESHRE Clinical Guidelines"
     )
     source_hint = (
-        "Questions are answered only from your indexed PDF."
+        "PDF passages are merged with evidence from your indexed clinical guidelines."
         if using_pdf else "Questions are answered from the indexed clinical guideline corpus."
     )
 
@@ -1049,7 +1060,7 @@ with left:
 
     st.markdown(
         f'<div class="primary-input-caption"><span>YOUR QUESTION</span>'
-        f'<span class="input-mode">{"PDF RAG · DOCUMENT GROUNDED" if using_pdf else "CLINICAL RAG · GUIDELINE GROUNDED"}</span></div>',
+        f'<span class="input-mode">{"MERGED RAG · PDF + GUIDELINES" if using_pdf else "CLINICAL RAG · GUIDELINE GROUNDED"}</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -1057,8 +1068,7 @@ with left:
         "Question",
         value=st.session_state.query,
         placeholder=(
-            "Ask anything about the uploaded PDF… You can ask for summaries, explanations, comparisons, "
-            "specific facts, or evidence from the document."
+            "Ask a question about the uploaded PDF and the indexed clinical guidelines…"
             if using_pdf else
             "Ask a clinical question grounded in the indexed guidelines…"
         ),
@@ -1068,7 +1078,7 @@ with left:
     )
 
     ask = st.button(
-        "ASK THE DOCUMENT →" if using_pdf else "ASK THE GUIDELINES →",
+        "ASK PDF + GUIDELINES →" if using_pdf else "ASK THE GUIDELINES →",
         type="primary",
         use_container_width=True,
         disabled=(not bool(st.session_state.pdf_document) if using_pdf else not bool(backend)),
@@ -1129,6 +1139,15 @@ with left:
                     display_query = query.strip() if query.strip() else f"Analyzed Document: {pdf_name}"
                     st.session_state.history.append({"query": display_query, "confidence": st.session_state.confidence})
 
+                except requests.HTTPError as e:
+                    detail = str(e)
+                    try:
+                        detail = e.response.json().get("detail", detail)
+                    except Exception:
+                        pass
+                    st.session_state.answer = f"PDF retrieval error: {detail}"
+                    st.session_state.evidence = []
+                    st.session_state.confidence = 0.0
                 except Exception as e:
                     st.session_state.answer = f"PDF retrieval error: {e}"
                     st.session_state.evidence = []
@@ -1206,22 +1225,31 @@ with left:
             meta = item.get("meta", {})
             if using_pdf:
                 source_name = meta.get("source") or meta.get("filename") or st.session_state.pdf_document.get("filename", "Uploaded PDF")
-                section = meta.get("section_title", meta.get("section", "PDF evidence"))
+                section_name = meta.get("section_name") or meta.get("section_title") or meta.get("section", "PDF evidence")
+                section_number = meta.get("section_number") or "—"
                 page = meta.get("page", meta.get("page_number", "—"))
                 score = item.get("rerank", item.get("score", 0))
                 try: pct = max(0, min(100, int(float(score) * 100)))
                 except Exception: pct = 0
             else:
                 source_name = meta.get("guideline", meta.get("source", "Guideline"))
-                section = meta.get("section_title", meta.get("section", "Clinical evidence"))
+                section_name = meta.get("section_name") or meta.get("section_title") or meta.get("section", "Clinical evidence")
+                section_number = meta.get("section_number") or "—"
                 page = meta.get("page", "—")
                 score = item.get("rerank", item.get("score", 0))
                 pct = max(0, min(100, int((float(score) + 5) / 10 * 100))) if score is not None else 0
+            chunk_id = meta.get("chunk_id", "Unknown")
+            rerank_score = meta.get("rerank_score", score)
+            try:
+                rerank_text = f"{float(rerank_score):.4f}"
+            except Exception:
+                rerank_text = str(rerank_score)
             delay = 0.05 * (i - 1)
             st.markdown(
                 f'''<div class="evidence fade-in" style="animation-delay:{delay}s;">
                     <div class="evidence-head"><div class="evidence-source"><span class="source-tag">S{i}</span>&nbsp; {html.escape(str(source_name))}</div><div class="meta">PAGE {html.escape(str(page))}</div></div>
-                    <div class="meta">{html.escape(str(section))}</div>
+                    <div class="meta">{html.escape(str(meta.get("source_type", "guideline")).replace("_", " ").upper())} · SECTION {html.escape(str(section_number))} · {html.escape(str(section_name))}</div>
+                    <div class="meta">CHUNK ID: {html.escape(str(chunk_id))} · RERANK SCORE: {html.escape(str(rerank_text))}</div>
                     <div class="quote">{html.escape(str(item.get("text", "")))}</div>
                     <div class="relevance-row"><div class="relevance-track"><div class="relevance-fill" style="width:{pct}%; animation-delay:{delay}s;"></div></div><div class="relevance-val">{pct}%</div></div>
                 </div>''', unsafe_allow_html=True,
@@ -1271,7 +1299,7 @@ with right:
                         "embedding_model": "BAAI/bge-small-en-v1.5",
                         "status": "Ready for Query",
                     }
-                   # st.session_state.question_source = "Uploaded PDF"
+                    st.session_state.pdf_mode_pending = True
                     st.session_state.pdf_upload_error = None
                     st.rerun()
                 except Exception as exc:
@@ -1296,7 +1324,7 @@ with right:
             f'<div class="spec-list"><div class="spec-row"><span class="spec-k">Status</span><span class="status-pill online" style="padding:3px 10px 3px 8px;"><span class="pdot"></span>INDEXED</span></div><div class="spec-row"><span class="spec-k">Pages</span><span class="spec-v">{html.escape(str(page_count))}</span></div><div class="spec-row"><span class="spec-k">Chunks</span><span class="spec-v">{html.escape(str(chunks))}</span></div><div class="spec-row"><span class="spec-k">File size</span><span class="spec-v">{html.escape(size_display)}</span></div><div class="spec-row"><span class="spec-k">Embedding model</span><span class="spec-v">{html.escape(str(pdf_doc.get("embedding_model", "Backend-defined")))}</span></div></div>',
             unsafe_allow_html=True,
         )
-        if st.session_state.question_source == "Uploaded PDF":
+        if st.session_state.question_source == "Clinical Guidelines + PDF":
             st.markdown(
                 f'<div class="pdf-ready-banner" style="margin-top:14px;margin-bottom:0;">{icon("check", 13, "currentColor", 2.2)} DOCUMENT ACTIVE · READY FOR QUESTIONS</div>',
                 unsafe_allow_html=True,
@@ -1305,7 +1333,6 @@ with right:
             st.session_state.pdf_document = None
             st.session_state.pdf_messages = []
             st.session_state.pdf_upload_error = None
-            st.session_state.question_source = "Clinical Guidelines"
             st.rerun()
 
     st.markdown(
@@ -1314,7 +1341,7 @@ with right:
     )
 
     st.markdown(
-        f'<div class="card card-tight fade-in d3"><div class="section-label">{icon("shield", 14)} GROUNDING POLICY</div><div class="section-title" style="font-size:1.22rem;">Source-aware by design</div><div class="small-note">Choose <b>Clinical Guidelines</b> for the existing EndoGuide RAG flow, or <b>Uploaded PDF</b> to restrict retrieval to your indexed document. The UI does not invent PDF processing results; indexing and retrieval are handled by the backend APIs.</div></div>',
+        f'<div class="card card-tight fade-in d3"><div class="section-label">{icon("shield", 14)} GROUNDING POLICY</div><div class="section-title" style="font-size:1.22rem;">Source-aware by design</div><div class="small-note">Choose <b>Clinical Guidelines</b> for guideline-only retrieval, or <b>Clinical Guidelines + PDF</b> to merge the uploaded document with the existing guideline database. Retrieved evidence is labeled by source.</div></div>',
         unsafe_allow_html=True,
     )
     # ---------- Confidence & safety ----------

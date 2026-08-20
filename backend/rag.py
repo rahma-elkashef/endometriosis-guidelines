@@ -1,11 +1,14 @@
 import re
 import pickle
+import io
 from pathlib import Path
 
 import numpy as np
 import chromadb
 import pymupdf
+import pytesseract
 import torch
+from PIL import Image
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
@@ -34,17 +37,12 @@ LLM_MODEL_NAME = "Qwen/Qwen2.5-0.5B-Instruct"
 # BGE query instruction — must match what was used at index time
 QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
 
-# Fallback question used when the user attaches a PDF but doesn't type a
-# question. The LLM still only answers from the retrieved NICE guideline
-# context -- this just gives it something concrete to respond to.
+# Fallback question used when the user attaches a PDF but doesn't type a question.
 DEFAULT_PDF_ONLY_QUESTION = (
-    "Based on the attached document, what do the relevant NICE "
-    "guideline recommendations say?"
+    "Based on the attached document, what are the main clinical points or recommendations?"
 )
 
 # Relevance gate thresholds.
-# These are INITIAL values — tune against your 15-20 test queries,
-# not final scientifically validated cutoffs.
 MIN_RERANK_SCORE = -1.5
 MAX_CHROMA_DISTANCE = 0.75
 USE_RERANK_GATE = True
@@ -54,16 +52,11 @@ USE_CHROMA_GATE = True
 # ============================================================
 # SYSTEM PROMPT
 # ============================================================
-# This is the prompt actually wired into generation (previously
-# system_prompt.py). The longer, excerpt-heavy version that used
-# to live in build_context.py was never imported by generate_answer.py
-# and has been dropped as dead code — restore it here if you decide
-# you want excerpt-style answers instead of the concise 3-section format.
 
 SYSTEM_PROMPT = """
 You are an evidence-grounded clinical decision support assistant.
 
-Answer the user's question using ONLY the retrieved guideline context.
+Answer the user's question using ONLY the retrieved context.
 
 ============================================================
 CORE RULES
@@ -74,7 +67,7 @@ CORE RULES
 2. Do not use general medical knowledge or assumptions.
 
 3. If the retrieved context is insufficient, say:
-   "Evidence is insufficient in the retrieved guidelines to answer this question."
+   "Evidence is insufficient in the retrieved documents to answer this question."
 
 4. Do not provide patient-specific diagnosis, treatment, or medical advice.
 
@@ -152,21 +145,13 @@ ANSWER RULES
    required to accurately answer the question.
 
 ============================================================
-
-
-============================================================
 OUTPUT FORMAT
 ============================================================
 
-Return EXACTLY these two sections and nothing else:
+Return EXACTLY ONE section and nothing else:
 
 Answer:
 [One concise answer] [S#]
-
-Medical Disclaimer:
-This information is based on the retrieved guidelines and is provided for
-informational and clinical decision-support purposes only. It does not replace
-professional medical judgment, diagnosis, or individualized medical advice.
 
 ============================================================
 STRICT OUTPUT RESTRICTIONS
@@ -174,6 +159,7 @@ STRICT OUTPUT RESTRICTIONS
 
 DO NOT output:
 - Supporting Evidence
+- Medical Disclaimer
 - Evidence
 - Explanation
 - Additional Information
@@ -185,16 +171,13 @@ DO NOT output:
 - Analysis
 - Multiple versions of the answer
 - Repeated sections
-- Any section other than the three specified above
 
-
-
-Do not continue writing after the disclaimer.
+STOP generating immediately after the Answer block.
 """
 
 
 # ============================================================
-# LOAD RESOURCES (module-level, loaded once on import)
+# LOAD RESOURCES
 # ============================================================
 
 _client = None
@@ -264,15 +247,10 @@ except Exception as exc:
 
 
 # ============================================================
-# RETRIEVAL
+# EXTRACTION & RETRIEVAL
 # ============================================================
 
 def tokenize(text):
-    """
-    Tokenize text while preserving clinically important recommendation
-    numbers such as 1.5.10, 1.5.11, plus normal words/abbreviations
-    (MRI, TVUS, ultrasound, ...).
-    """
     if not text:
         return []
     return re.findall(r"\b[\w.]+\b", text.lower())
@@ -281,26 +259,21 @@ def tokenize(text):
 def _split_words_into_chunks(words, max_words=220, overlap=40):
     chunks = []
     start = 0
-
     while start < len(words):
         end = min(start + max_words, len(words))
         chunk = " ".join(words[start:end]).strip()
         if chunk:
             chunks.append(chunk)
-
         if end >= len(words):
             break
-
         start = max(end - overlap, start + 1)
-
     return chunks
 
 
 def extract_uploaded_pdf_chunks(pdf_bytes, filename, max_words=220, overlap=40):
     """Extract chunkable text from an uploaded PDF."""
     if not pdf_bytes:
-        return []
-
+        raise ValueError("The uploaded PDF is empty.")
     try:
         document = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     except Exception as exc:
@@ -310,7 +283,25 @@ def extract_uploaded_pdf_chunks(pdf_bytes, filename, max_words=220, overlap=40):
     chunks = []
 
     for page_number, page in enumerate(document, start=1):
-        page_text = re.sub(r"\s+", " ", page.get_text("text") or "").strip()
+        page_text = re.sub(r"\s+", " ", page.get_text("text", sort=True) or "").strip()
+
+        if not page_text:
+            block_text = " ".join(
+                str(block[4])
+                for block in page.get_text("blocks", sort=True)
+                if len(block) > 4 and block[4]
+            )
+            page_text = re.sub(r"\s+", " ", block_text).strip()
+
+        # Fall back to OCR for scanned/image-only PDF pages.
+        if not page_text:
+            try:
+                pixmap = page.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False)
+                image = Image.open(io.BytesIO(pixmap.tobytes("png")))
+                page_text = re.sub(r"\s+", " ", pytesseract.image_to_string(image)).strip()
+            except Exception:
+                page_text = ""
+
         if not page_text:
             continue
 
@@ -332,49 +323,66 @@ def extract_uploaded_pdf_chunks(pdf_bytes, filename, max_words=220, overlap=40):
                     "source_type": "uploaded_pdf",
                 },
             })
-
     return chunks
 
 
-def build_uploaded_pdf_context(pdf_bytes, filename, max_chunks=4, max_words_per_chunk=220):
-    """Create a compact prompt-only context block from an uploaded PDF."""
-    chunks = extract_uploaded_pdf_chunks(pdf_bytes, filename, max_words=max_words_per_chunk)
+def retrieve_from_pdf(query, pdf_bytes, filename, top_k=5):
+    """Extract and rank chunks from an uploaded PDF."""
+    chunks = extract_uploaded_pdf_chunks(pdf_bytes, filename)
     if not chunks:
-        raise ValueError("Uploaded PDF contains no extractable text. OCR for scanned PDFs is not implemented.")
-
-    context_parts = []
-    for i, chunk in enumerate(chunks[:max_chunks], start=1):
-        context_parts.append(
-            f"[UP{i}] Source: {filename or 'uploaded.pdf'} | Page {chunk['metadata'].get('page', '?')}\n"
-            f"{chunk['document']}"
+        raise ValueError(
+            "No readable text was found in the uploaded PDF. "
+            "For scanned PDFs, install the Tesseract OCR application and ensure it is on PATH."
         )
 
-    return "\n\n".join(context_parts)
+    # Use the cross-encoder to rank the PDF chunks against the user's question
+    if reranker is not None:
+        pairs = [[query, c["document"]] for c in chunks]
+        scores = reranker.predict(pairs)
+        ranked = sorted(zip(chunks, scores), key=lambda x: float(x[1]), reverse=True)
+    else:
+        # Fallback if reranker fails
+        ranked = list(zip(chunks, [0.0] * len(chunks)))
+
+    results = []
+    for chunk, score in ranked[:top_k]:
+        meta = chunk["metadata"].copy()
+        meta["text"] = chunk["document"]
+        meta["chunk_id"] = chunk["id"]
+        meta["rerank_score"] = float(score)
+        meta["source"] = filename or "Uploaded Document"
+        meta["guideline"] = "Attached PDF" 
+        results.append(meta)
+
+    return results
 
 
-def build_uploaded_pdf_query_hint(pdf_bytes, filename, max_words_per_chunk=220, max_chunks=4):
-    """Build a compact retrieval hint from the uploaded PDF text."""
-    chunks = extract_uploaded_pdf_chunks(pdf_bytes, filename, max_words=max_words_per_chunk)
-    if not chunks:
-        raise ValueError("Uploaded PDF contains no extractable text. OCR for scanned PDFs is not implemented.")
+def retrieve_merged(query, pdf_bytes=None, pdf_name=None, top_k=5):
+    """Retrieve from the guideline database and optional uploaded PDF."""
+    guideline_results = retrieve(query, top_k=top_k)
+    pdf_results = []
 
-    text_parts = [chunk["document"] for chunk in chunks[:max_chunks]]
-    hint_text = " ".join(text_parts)
-    hint_text = re.sub(r"\s+", " ", hint_text).strip()
-    return hint_text
+    if pdf_bytes:
+        pdf_results = retrieve_from_pdf(query, pdf_bytes, pdf_name, top_k=top_k)
+
+    merged = guideline_results + pdf_results
+    if not merged:
+        return []
+
+    # Rerank both source types together so the answer receives the strongest
+    # passages regardless of which source produced them.
+    if reranker is not None and len(merged) > 1:
+        pairs = [[query, item.get("text", "")] for item in merged]
+        scores = reranker.predict(pairs)
+        for item, score in zip(merged, scores):
+            item["rerank_score"] = float(score)
+
+    merged.sort(key=lambda item: float(item.get("rerank_score", 0.0)), reverse=True)
+    return merged[:top_k]
 
 
 def retrieve(query, top_k=5, candidate_k=50, min_score=None, max_distance=None, debug=False):
-    """
-    Hybrid retrieval pipeline:
-        1. BGE dense semantic retrieval
-        2. BM25 lexical retrieval
-        3. Merge candidates
-        4. Cross-encoder reranking
-        5. Relevance gate (best result must pass Chroma distance + rerank score)
-        6. Return top-k results as a list of metadata dicts (each includes
-           'text', 'chunk_id', 'rerank_score', 'chroma_distance', ...)
-    """
+    """Hybrid retrieval pipeline from ChromaDB (used when NO PDF is attached)."""
     if min_score is None:
         min_score = MIN_RERANK_SCORE
     if max_distance is None:
@@ -435,7 +443,7 @@ def retrieve(query, top_k=5, candidate_k=50, min_score=None, max_distance=None, 
                 "bm25_score": float(bm25_scores[idx]),
             })
 
-    # --- 3. Merge dense + BM25 candidates (dedup by chunk id) ---
+    # --- 3. Merge dense + BM25 candidates ---
     candidate_map = {}
     for c in dense_candidates:
         candidate_map[c["id"]] = c
@@ -456,35 +464,7 @@ def retrieve(query, top_k=5, candidate_k=50, min_score=None, max_distance=None, 
 
     ranked = sorted(zip(candidates, rerank_scores), key=lambda x: float(x[1]), reverse=True)
 
-    if debug:
-        print("\n" + "=" * 80)
-        print("RERANKING DIAGNOSTICS")
-        print("=" * 80)
-        print(f"Query: {query}")
-        print(f"Candidates: {len(ranked)}")
-        for rank, (candidate, score) in enumerate(ranked, start=1):
-            meta = candidate["metadata"]
-            print(f"\n{rank}. Rerank={float(score):.4f} | "
-                  f"Chroma distance={candidate.get('distance', 'N/A')} | "
-                  f"BM25={candidate.get('bm25_score', 'N/A')}")
-            print(f"   Section: {meta.get('section', '')}")
-            print(f"   Page: {meta.get('page', '')}")
-
-    # --- 5. Relevance gate on the best candidate ---
-    best_candidate, best_score = ranked[0][0], float(ranked[0][1])
-    best_distance = best_candidate.get("distance", None)
-
-    if USE_RERANK_GATE and best_score < min_score:
-        if debug:
-            print(f"\n❌ Relevance gate failed: best rerank score {best_score:.4f} < {min_score:.4f}")
-        return []
-
-    if USE_CHROMA_GATE and best_distance is not None and best_distance > max_distance:
-        if debug:
-            print(f"\n❌ Semantic gate failed: best distance {best_distance:.4f} > {max_distance:.4f}")
-        return []
-
-    # --- 6. Build final filtered, top-k results ---
+    # --- 5. Build final filtered, top-k results ---
     results = []
     for candidate, score in ranked:
         score = float(score)
@@ -525,10 +505,10 @@ def build_context(results):
         source = result.get("source", "Unknown")
         page = result.get("page", "Unknown")
         section = result.get("section_title", result.get("section", "Unknown"))
-        guideline = result.get("guideline", "NICE NG73")
+        guideline = result.get("guideline", "Source Document")
         section_number = result.get("section_number", "Not specified")
         publisher = result.get("publisher", "NICE")
-        chunk_id = result.get("chunk_id")
+        chunk_id = result.get("chunk_id", "Unknown")
         citation_id = f"S{i}"
 
         context_parts.append(f"""
@@ -551,76 +531,35 @@ Evidence:
     return "\n".join(context_parts)
 
 
-def build_prompt(query, results, uploaded_pdf_context=None):
-    guideline_context = build_context(results)
+def build_prompt(query, results):
+    evidence_context = build_context(results)
     
     prompt_parts = []
-    
-    # 1. Put the user's PDF at the very top so it doesn't distract the LLM later
-    if uploaded_pdf_context:
-        prompt_parts.append(
-            f"--- USER PROVIDED BACKGROUND DOCUMENT ---\n"
-            f"{uploaded_pdf_context}\n"
-            f"--- END OF BACKGROUND DOCUMENT ---\n\n"
-            f"Important constraint: The background document above is ONLY for understanding the scenario. "
-            f"DO NOT cite it. You must generate your answer ONLY from the NICE guidelines below."
-        )
-    
-    # 2. Put the guidelines in the middle
-    prompt_parts.append(f"Retrieved NICE guideline context:\n{guideline_context}")
-    
-    # 3. Put the question at the very end so it's the last thing the LLM reads
+    prompt_parts.append(f"Retrieved Evidence Context:\n{evidence_context}")
     prompt_parts.append(f"Question: {query}")
     
     return "\n\n".join(prompt_parts)
-
-# def build_prompt(query, results, uploaded_pdf_context=None):
-#     context = build_context(results, uploaded_pdf_context=uploaded_pdf_context)
-#     return f"""
-
-# Retrieved NICE guideline context:
-
-# {context}
-# Question: {query}
-# """
 
 
 # ============================================================
 # GENERATION
 # ============================================================
 
-def generate_answer(query, results, uploaded_pdf_context=None):
+def generate_answer(query, results):
     disclaimer = (
         "\n\n**Medical Disclaimer:**\n"
-        "This information is based on the retrieved guidelines and is provided for "
+        "This information is based on the retrieved documents and is provided for "
         "informational and clinical decision-support purposes only. It does not replace "
         "professional medical judgment, diagnosis, or individualized medical advice."
     )
+    
     if not results:
-        return """
-Recommendation:
-Evidence is insufficient in the retrieved guidelines.
-
-Confidence and safety:
-Low confidence. No sufficiently relevant guideline evidence was retrieved.
-
-Citation:
-None.
-"""
+        return "Answer:\nEvidence is insufficient in the retrieved documents to answer this question." + disclaimer
 
     if tokenizer is None or llm is None:
-        return """
-Recommendation:
-Evidence is insufficient in the retrieved guidelines.
+        return "Answer:\nThe generation model is unavailable in this session." + disclaimer
 
-Confidence and safety:
-Low confidence. The generation model is unavailable in this session.
-
-Citation:
-None.
-"""
-
-    user_prompt = build_prompt(query, results, uploaded_pdf_context=uploaded_pdf_context)
+    user_prompt = build_prompt(query, results)
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -639,7 +578,10 @@ None.
         )
 
     generated_tokens = outputs[0][inputs["input_ids"].shape[1]:]
-    return tokenizer.decode(generated_tokens, skip_special_tokens=True)+ disclaimer
+    raw_answer = tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
+    
+    # Safely append the disclaimer 
+    return raw_answer + disclaimer
 
 
 # ============================================================
@@ -647,51 +589,35 @@ None.
 # ============================================================
 
 def rag_pipeline(query=None, top_k=5, uploaded_pdf_bytes=None, uploaded_pdf_name=None):
+    """
+    Retrieve from the guideline database, optionally merged with an uploaded PDF.
+    """
     query = (query or "").strip()
     has_pdf = uploaded_pdf_bytes is not None
 
     if not query and not has_pdf:
         raise ValueError("Provide a question, an attached PDF, or both.")
 
-    uploaded_pdf_context = None
-    retrieval_query = query
+    if has_pdf and not query:
+        query = DEFAULT_PDF_ONLY_QUESTION
 
-    if has_pdf:
-        uploaded_pdf_context = build_uploaded_pdf_context(uploaded_pdf_bytes, uploaded_pdf_name)
-        retrieval_hint = build_uploaded_pdf_query_hint(uploaded_pdf_bytes, uploaded_pdf_name)
+    results = retrieve_merged(
+        query,
+        pdf_bytes=uploaded_pdf_bytes,
+        pdf_name=uploaded_pdf_name,
+        top_k=top_k,
+    )
+    print(f"\n[DEBUG] Merged retrieval active. Query: '{query}'")
+    print(f"[DEBUG] Guideline/PDF evidence chunks returned: {len(results)}")
 
-        if query:
-            # TEXT + PDF MODE:
-            # We strictly search using ONLY the user's typed question. 
-            # We DO NOT append the PDF text here, to protect the search models.
-            retrieval_query = query
-        else:
-            # PDF ONLY MODE:
-            # The user typed nothing. We must search using the PDF text.
-            # We slice the first 50 words so we don't crash the 512-token limit.
-            short_hint = " ".join(retrieval_hint.split()[:20])
-            retrieval_query = f"clinical guidelines and recommendations for: {short_hint}"
-            query = DEFAULT_PDF_ONLY_QUESTION
-
-    # 1. Retrieve
-    results = retrieve(retrieval_query, top_k=top_k)
-
-    # 2. Debug Prints
-    print(f"\n[DEBUG] Search Query sent to Vector DB: '{retrieval_query}'")
-    print(f"[DEBUG] Number of guideline chunks retrieved: {len(results)}")
-    print(f"[DEBUG] Is PDF context successfully built? {'Yes' if uploaded_pdf_context else 'No'}")
-
-    # 3. Build & Generate
-    prompt = build_prompt(query, results, uploaded_pdf_context=uploaded_pdf_context)
-    
-    # Notice we removed uploaded_pdf_context from generate_answer!
-    # (Make sure your def generate_answer(query, results): signature matches this)
+    # 2. Build and generate from the merged evidence set.
+    prompt = build_prompt(query, results)
     answer = generate_answer(query, results) 
     
     return answer, prompt, results
 
 if __name__ == "__main__":
-    # Quick manual smoke test: python rag.py
+    # Quick manual smoke test
     test_query = "What imaging should be offered to someone with suspected endometriosis?"
     ans, ctx, results = rag_pipeline(test_query)
     print("\n" + "=" * 80)
